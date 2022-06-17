@@ -11,7 +11,7 @@ import pandas as pd
 from PMTK.utility.candidate_iterator import *
 from PMTK.sampling.gibbs import *
 
-def find_best_subset(items, utility, subsets, banned = []):
+def find_best_subset(items, utility, subsets, banned = [], sense = 1):
     mdl = Model("Subset Optim")
     item_v = mdl.binary_var_dict(items)
     u_var = mdl.binary_var_dict(subsets)
@@ -38,7 +38,7 @@ def find_best_subset(items, utility, subsets, banned = []):
             mdl.add_constraint(o == 1)
 
     obj = mdl.sum([u*u_var[s] for s,u in zip(subsets, utility)])
-    mdl.maximize(obj)
+    mdl.maximize(sense*obj)
     mdl.solve()
     return tuple([s for s in item_v if item_v[s].solution_value == 1])
 

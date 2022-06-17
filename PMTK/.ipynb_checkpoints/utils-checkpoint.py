@@ -62,3 +62,11 @@ def entropy_matrix(sampled, utilities, subsets):
                 continue
             entropy_matrix[sampled.index(s_1), sampled.index(s_2)] = utility_entropy(s_1, s_2, utilities, subsets)
     return entropy_matrix
+
+
+def pareto_dominate(x,y, epsilon = 1e-5):
+    if ((x - y) >= epsilon).all():
+        return 1
+    if ((y - x) >= epsilon).all():
+        return -1
+    return 0
