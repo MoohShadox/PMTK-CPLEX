@@ -52,7 +52,8 @@ class CandidateIterator():
             #print("powerset of:", s, " subset:", p[self.current_subset])
             s = p[self.current_subset]
             self.current_subset += 1
-            if self.representant and theta_better(self.representant, self.theta+[s]) == 1:
+            #if self.representant and theta_better(self.representant, self.theta+[s]) == 1:
+            if self.representant and additivity(self.representant) < additivity(self.theta + [s]):
                 self.current_powerset += 1
             if not s in self.theta and check_connivence_resolution(self.connivent,s):
                 #print("We return ",s)

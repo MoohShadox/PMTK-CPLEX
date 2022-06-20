@@ -23,6 +23,11 @@ def exist_superset(subset, subsets):
             return True
     return False
 
+def keep_non_dominated(thetas):
+    a = min([additivity(t) for t in thetas])
+    s = min([len(t) for t in thetas])
+    return [t for t in thetas if additivity(t) == a and len(t) == s]
+
 def next_candidate(connivent, theta, representant):
     s = 0
     subsets = [x for x,y in connivent] + [y for x,y in connivent]
@@ -51,15 +56,12 @@ def dfs_thetas_r(preferences, theta, theta_mins = [], stats = [], banned = [], b
         stats[0] = stats[0] + 1
     c = get_connivent(theta, preferences)
     print(" === Call with theta= ", theta , "===")
-    print("Theta:", theta)
-    print("Theta min:", theta_mins)
-    print("Connivent is", c)
     representant = theta_mins[0] if len(theta_mins) > 0 else None
     if c == None:
-        print("Connivent found while theta_min is ", theta_mins)
+        #print("Connivent found while theta_min is ", theta_mins)
         kernels = [theta]
-        k2 = get_kernels(preferences, theta)
-
+        k2 = []
+        #k2 = get_kernels(preferences, theta)
         if len(k2) > 0:
             kernels = k2
 
@@ -69,12 +71,12 @@ def dfs_thetas_r(preferences, theta, theta_mins = [], stats = [], banned = [], b
             return
 
         for t in kernels:
-            if theta_better(t, theta_mins[0]) > 0:
-                theta_mins.clear()
+            theta_mins.append(t)
+            t2 = keep_non_dominated(theta_mins)
+            theta_mins.clear()
+            for t in t2:
                 theta_mins.append(t)
-
-            if representant and theta_better(t, representant) == 0:
-                theta_mins.append(t)
+            print(theta , "✓")
             print("Upating theta min", theta_mins)
             print("== Closing node theta = ", theta, " == ")
         return
@@ -82,6 +84,7 @@ def dfs_thetas_r(preferences, theta, theta_mins = [], stats = [], banned = [], b
     cit = CandidateIterator(c, theta = theta, representant = representant)
     #print("Iterating over candidate")
     for candidate in cit:
+        #print("Theta:", theta, "Connivent is ", c)
         #print("Trying candidate:", candidate)
         if candidate in banned and bann_opt:
             continue
@@ -90,8 +93,9 @@ def dfs_thetas_r(preferences, theta, theta_mins = [], stats = [], banned = [], b
         cit.representant = representant
         if representant and theta_better(n_theta, representant) < 0:
             continue
+        print("In theta= ", theta,"Connivent is ", c," Trying ", candidate)
         dfs_thetas_r(preferences, n_theta, theta_mins, stats = stats, banned = banned + [candidate])
-    print("== Closing node theta = ", theta, " == ")
+    #print("== Closing node theta = ", theta, " == ")
 
 def get_min_thetas(preferences, initial_theta, bann_opt = True):
     representant = None

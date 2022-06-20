@@ -85,7 +85,6 @@ def preference_complexity(subset_1, subset_2, theta):
 def get_connivent(theta, preferences):
     if EMPTY_SET in theta:
         theta.remove(EMPTY_SET)
-    print("Calling unsat on ")
     #print("p= ", preferences)
     #print("theta= ", theta)
     mdl = unsat_polyhedron(preferences.items, theta, preferences)
@@ -95,7 +94,7 @@ def get_connivent(theta, preferences):
     #print("complexity total:" , comp_sum)
     mdl.maximize_static_lex([mdl.connivence_test, -comp_sum])
     mdl.solve()
-    print("It gave the solution: ", mdl.connivence_test.solution_value)
+    #print("It gave the solution: ", mdl.connivence_test.solution_value)
     if mdl.connivence_test.solution_value == 0:
         return None
     connivent = []
@@ -176,7 +175,7 @@ def get_kernel(preferences, theta, found = []):
     mdl.indicators = {}
     for s in theta:
         b = mdl.binary_var(name = f"b_{s}")
-        mdl.add_constraint(mdl.abs(mdl.utilities[s]) <= 1e6*b)
+        mdl.add_constraint(mdl.abs(mdl.utilities[s]) <= 1e3*b)
         mdl.indicators[s] = b
 
     additivity_exps = [mdl.indicators[s]*len(s) for s in mdl.indicators]
@@ -187,44 +186,21 @@ def get_kernel(preferences, theta, found = []):
     print("==== ")
     print("Computing kernel", )
     #print(preferences)
-    #print(theta)
-
-    if len(found) > 0:
-        o1 = mdl.binary_var(name = "o1")
-        o2 = mdl.binary_var(name = "o2")
-        representant = found[0]
-        mdl.add_indicator(o1, additivity_obj == additivity(representant))
-        mdl.add_indicator(o2, size_obj == len(representant))
-        indics = [o1, o2]
-        for f in found:
-            print("found = ", found, "f= ", f)
-            print("items=", preferences.items)
-            f_b = [x for x in theta if not x in f]
-            v_f = [mdl.indicators[i] for i in f ]
-            v_fb = [mdl.indicators[i] for i in mdl.utilities if i not in f]
-            c1 = mdl.logical_or(*v_fb)
-            c2 = mdl.logical_and(*v_f)
-            c3 = mdl.logical_not(c2)
-            #print("c1 = ", c1, " c3 = ", c3)
-            if len(v_fb) > 0:
-                c = mdl.logical_or(c1, c3)
-            else:
-                c = c3
-            indics.append(c)
-        mdl.add_constraint(valid == mdl.logical_and(*indics))
+    print(theta)
 
     mdl.minimize_static_lex([mdl.slack_sum, -valid, additivity_obj, size_obj])
     #print(mdl.lp_string)
     mdl.solve(log_output = False)
-    #print("Slack: ", mdl.slack_sum.solution_value)
-    #print("Valid:", valid.solution_value)
-    #print("Additivity:", additivity_obj.solution_value)
-    #print("Size:", size_obj.solution_value)
+    print("Slack: ", mdl.slack_sum.solution_value)
+    print("Valid:", valid.solution_value)
+    print("Additivity:", additivity_obj.solution_value)
+    print("Size:", size_obj.solution_value)
     if mdl.slack_sum.solution_value != 0:
         raise Exception("Empty Polyhedron")
     if valid.solution_value != 1:
         return None
-    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value == 1]
+    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
     return kernel
 
 
