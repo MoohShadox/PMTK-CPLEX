@@ -225,6 +225,63 @@ def get_kernel(preferences, theta, found = []):
     #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
     return kernel
 
+def get_kernel_opt(preferences, theta, found = []):
+    mdl = utility_polyhedron(preferences.items, theta, preferences)
+    mdl.indicators = {}
+    for s in theta:
+        b = mdl.binary_var(name = f"b_{s}")
+        mdl.add_constraint(mdl.abs(mdl.utilities[s]) <= 1e3*b)
+        mdl.indicators[s] = b
+
+    additivity_exps = [mdl.indicators[s]*len(s) for s in mdl.indicators]
+    additivity_obj = mdl.max(additivity_exps)
+    expressivity_obj = mdl.sum(additivity_exps)
+    
+    size_obj = mdl.sum_vars_all_different(mdl.indicators.values())
+    valid = mdl.binary_var(name = "valid")
+    #print("==== ")
+    #print("Computing kernel", )
+    #print(preferences)
+    #print(theta)
+    
+    if len(found) > 0:
+        o1 = mdl.binary_var(name = "o1")
+        o2 = mdl.binary_var(name = "o2")
+        o3 = mdl.binary_var(name = "o3")
+        representant = found[0]
+        mdl.add_indicator(o1, additivity_obj == additivity(representant))
+        mdl.add_indicator(o2, size_obj == len(representant))
+        mdl.add_indicator(o3, expressivity_obj == sum([len(i) for i in representant]))
+        indics = [o1, o2, o3]
+        for f in found:
+            f_b = [x for x in theta if not x in f]
+            v_f = [mdl.indicators[i] for i in f ]
+            v_fb = [mdl.indicators[i] for i in mdl.utilities if i not in f]
+            c1 = mdl.logical_or(*v_fb)
+            c2 = mdl.logical_and(*v_f)
+            c3 = mdl.logical_not(c2)
+            #print("c1 = ", c1, " c3 = ", c3)
+            if len(v_fb) > 0:
+                c = mdl.logical_or(c1, c3)
+            else:
+                c = c3
+            indics.append(c)
+        mdl.add_constraint(valid == mdl.logical_and(*indics))
+
+    mdl.minimize_static_lex([mdl.slack_sum, -valid, additivity_obj, size_obj, expressivity_obj])
+    #print(mdl.lp_string)
+    mdl.solve(log_output = False)
+    #print("Slack: ", mdl.slack_sum.solution_value)
+    #print("Valid:", valid.solution_value)
+    #print("Additivity:", additivity_obj.solution_value)
+    #print("Size:", size_obj.solution_value)
+    if mdl.slack_sum.solution_value != 0:
+        raise Exception("Empty Polyhedron")
+    if valid.solution_value != 1:
+        return None
+    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
+    return kernel
 
 def get_kernels(preferences, theta):
     found = []
@@ -232,11 +289,49 @@ def get_kernels(preferences, theta):
     while k:
         found.append(k)
         k = get_kernel(preferences, theta, found)
-        print("Found = ", found)
+        #print("Found = ", found)
     return found
 
+def get_kernels_opt(preferences, theta):
+    found = []
+    k = get_kernel_opt(preferences, theta, found = found)
+    while k:
+        found.append(k)
+        k = get_kernel_opt(preferences, theta, found)
+        #print("Found = ", found)
+    return found
 
-
-
-
-
+def build_approx_theta(prf, init_theta = None):
+    connivents = []
+    if not init_theta:
+        init_theta = [EMPTY_SET]
+    theta = init_theta
+    min_k = 1
+    c  = get_connivent(theta, prf)
+    while c:
+        if not c in connivents:
+            connivents.append(c)
+        cit = get_candidate_iterator(c)
+        skey = sorted(cit.keys())[0]
+        b = False
+        for k in cit:
+            if b:
+                break
+            for i in cit[k]:
+                for t in i:
+                    b = False or check_connivence_resolution(c, t)
+                    if not t in theta and check_connivence_resolution(c, t):
+                        theta.append(t)
+        c  = get_connivent(theta, prf)
+    #a = additivity(theta)
+    #for c in connivents:
+    #    cit = get_candidate_iterator(c)
+    #    for k in cit:
+    #        if k > a:
+    #            break
+    #        for i in cit[k]:
+    #            for t in i:
+    #                if not t in theta and check_connivence_resolution(c,t):
+    #                    theta.append(t)
+    #
+    return theta

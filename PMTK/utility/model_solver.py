@@ -17,37 +17,32 @@ def theta_better(theta_1, theta_2):
         else:
             return 0
 
-def exist_superset(subset, subsets):
-    for s in subsets:
-        if all(i in s for i in subset) and not all(i in subset for i in s):
-            return True
-    return False
+def check_connivence_resolution(connivent_set, candidate):
+    if len(candidate) == 0:
+        return False
+    c = 0
+    for x,y in connivent_set:
+        if all(i in x for i in candidate):
+            c += 1
+        if all(i in y for i in candidate):
+            c -= 1
+    return c != 0
 
-def keep_non_dominated(thetas):
-    a = min([additivity(t) for t in thetas])
-    s = min([len(t) for t in thetas])
-    return [t for t in thetas if additivity(t) == a and len(t) == s]
-
-def next_candidate(connivent, theta, representant):
-    s = 0
-    subsets = [x for x,y in connivent] + [y for x,y in connivent]
-    n_subsets = []
-    #print("subsets: ", subsets)
-    for s in subsets:
-        if not exist_superset(s, subsets):
-            n_subsets.append(s)
-    subsets = n_subsets
-    random.shuffle(subsets)
-    #print("Subsets where to seek:", subsets)
-    for s in subsets:
-        p = powerset(s)
-        for s in p:
-            #print("Checking ", s)
-            if not s in theta and check_connivence_resolution(connivent,s):
-                #print("Return ",s)
-                yield s
-            if representant and theta_better(representant, theta+[s]):
-                break
+        
+def theta_better_opt(theta_1, theta_2):
+    if additivity(theta_1) != additivity(theta_2):
+        return 1 if additivity(theta_1) < additivity(theta_2) else -1
+    else:
+        if len(theta_1) != len(theta_2):
+            return 1 if len(theta_1) < len(theta_2) else -1
+        else:
+            if sum([len(i) for i in theta_1]) != sum([len(i) for i in theta_2]):
+                return 1 if sum([len(i) for i in theta_1]) < sum([len(i) for i in theta_2]) else -1
+            return 0
+        
+        
+def additivity(theta):
+    return max([len(i) for i in theta])
 
 def dfs_thetas_r(preferences, theta, theta_mins = [], stats = [], banned = [], bann_opt = True):
     if len(stats) == 0:
@@ -105,3 +100,194 @@ def get_min_thetas(preferences, initial_theta, bann_opt = True):
     return theta_mins, stats
 
 
+def get_candidate_iterator(c, bound = np.inf):
+    a = list(set([x[0] for x in c if len(x[0]) > 0] + [x[1] for x in c if len(x[1]) > 0]))
+    a = sorted(a, key = lambda x:len(x))
+    iterators = {}
+    for x in a:
+        for k in range(1,min(len(x)+1, bound)):
+            iterators[k] = iterators.get(k,[]) + [itertools.combinations(x, k)]
+    for k in iterators:
+        random.shuffle(iterators[k])
+    return iterators
+
+
+def dfs_thetas_full(preferences, theta, theta_mins, banned = None, bann_opt = False):
+    if not banned:
+        banned = []
+    theta = sorted(theta)
+    c = get_connivent(theta, preferences)
+    #print("Theta = ", theta, end = "\t")
+    #print("c = ", c, end = "\t")
+    #print("Banned = ", banned)
+    
+    if c == None:
+        #print("Found ", theta)
+        theta_mins.append(theta)
+        return 
+    
+    its = get_candidate_iterator(c)
+    for k in its:
+        for candidates in its[k]:
+            for c in candidates:
+                if c in theta:
+                    continue
+                n_theta = theta + [c]
+                dfs_thetas_full(preferences, n_theta, theta_mins)
+    return True 
+
+def dfs_thetas_r(preferences, theta, theta_mins = [], banned = None, bann_opt = False):
+    if not banned:
+        banned = []
+    theta = sorted(theta)
+    c = get_connivent(theta, preferences)
+    #print("Theta = ", theta, end = "\t")
+    #print("c = ", c, end = "\t")
+    #print("Banned = ", banned)
+    
+    if c == None:
+        kernels = [theta]
+        #kernels += get_kernels(prf, theta)
+        for theta in kernels:
+            if theta in theta_mins:
+                continue
+            if len(theta_mins) == 0:
+                theta_mins.append(theta)
+                return additivity(theta_mins[0]), len(theta_mins[0])
+            if theta_better(theta, theta_mins[0]) == 1:
+                theta_mins.clear()
+                theta_mins.append(theta)
+            elif theta_better(theta, theta_mins[0]) == 0:
+                theta_mins.append(theta)
+        return 
+                
+    its = get_candidate_iterator(c)
+    b = list(banned)
+    for k in its:
+        for candidates in its[k]:
+            for c in candidates:
+                if len(theta_mins) > 0 and k > additivity(theta_mins[0]):
+                    #print("Cutting over", k, " in:", theta , end = " ")
+                    break
+                if c in theta or c in b:
+                    continue
+                n_theta = theta + [c]
+                if len(theta_mins) > 0 and theta_better(n_theta, theta_mins[0]) == -1:
+                    #print("Cutting", c , " in:", theta, end = " ")
+                    continue
+                #print("Trying candidate ", c)
+                dfs_thetas_r(preferences, n_theta, theta_mins, banned = b)
+                if bann_opt:
+                    b.append(c)
+    return True
+
+def dfs_thetas_opt(preferences, theta, theta_mins = [], banned = None, bann_opt = False):
+    if not banned:
+        banned = []
+    theta = sorted(theta)
+    c = get_connivent(theta, preferences)
+    #print("Theta = ", theta, end = "\t")
+    #print("c = ", c, end = "\t")
+    #print("Banned = ", banned)
+    
+    if c == None:
+        kernels = [theta]
+        #kernels += get_kernels(prf, theta)
+        for theta in kernels:
+            if theta in theta_mins:
+                continue
+            if len(theta_mins) == 0:
+                theta_mins.append(theta)
+                return additivity(theta_mins[0]), len(theta_mins[0])
+            if theta_better_opt(theta, theta_mins[0]) == 1:
+                theta_mins.clear()
+                theta_mins.append(theta)
+            elif theta_better_opt(theta, theta_mins[0]) == 0:
+                theta_mins.append(theta)
+        return
+    
+    its = get_candidate_iterator(c)
+    b = list(banned)
+    for k in its:
+        for candidates in its[k]:
+            for c in candidates:
+                if len(theta_mins) > 0 and k > additivity(theta_mins[0]):
+                    #print("Cutting over", k, " in:", theta , end = " ")
+                    break
+                if c in theta or c in b:
+                    continue
+                n_theta = theta + [c]
+                if len(theta_mins) > 0 and theta_better_opt(n_theta, theta_mins[0]) == -1:
+                    #print("Cutting", c , " in:", theta, end = " ")
+                    continue
+                #print("Trying candidate ", c)
+                dfs_thetas_opt(preferences, n_theta, theta_mins, banned = b)
+                if bann_opt:
+                    b.append(c)
+    return True
+
+
+
+def get_min_thetas(preferences, initial_theta = None, bann_opt = True):
+    representant = None
+    theta_mins = []
+    stats = []
+    if not initial_theta:
+        initial_theta = [EMPTY_SET]
+    dfs_thetas_r(preferences, initial_theta, theta_mins = theta_mins, bann_opt = bann_opt)
+    return theta_mins, stats
+
+def get_all_thetas(preferences, initial_theta = None, bann_opt = True):
+    representant = None
+    theta_mins = []
+    stats = []
+    if not initial_theta:
+        initial_theta = [EMPTY_SET]
+    dfs_thetas_full(preferences, initial_theta, theta_mins = theta_mins, bann_opt = bann_opt)
+    return theta_mins, stats
+
+def get_opt_thetas(preferences, initial_theta = None, bann_opt = True):
+    representant = None
+    theta_mins = []
+    stats = []
+    if not initial_theta:
+        initial_theta = [EMPTY_SET]
+    dfs_thetas_opt(preferences, initial_theta, theta_mins = theta_mins, bann_opt = bann_opt)
+    return theta_mins, stats
+
+
+
+def build_approx_theta(prf, init_theta = None):
+    connivents = []
+    if not init_theta:
+        init_theta = [EMPTY_SET]
+    theta = init_theta
+    min_k = 1
+    c  = get_connivent(theta, prf)
+    while c:
+        if not c in connivents:
+            connivents.append(c)
+        cit = get_candidate_iterator(c)
+        skey = sorted(cit.keys())[0]
+        b = False
+        for k in cit:
+            if b:
+                break
+            for i in cit[k]:
+                for t in i:
+                    b = False or check_connivence_resolution(c, t)
+                    if not t in theta and check_connivence_resolution(c, t):
+                        theta.append(t)
+        c  = get_connivent(theta, prf)
+    #a = additivity(theta)
+    #for c in connivents:
+    #    cit = get_candidate_iterator(c)
+    #    for k in cit:
+    #        if k > a:
+    #            break
+    #        for i in cit[k]:
+    #            for t in i:
+    #                if not t in theta and check_connivence_resolution(c,t):
+    #                    theta.append(t)
+    #
+    return theta
