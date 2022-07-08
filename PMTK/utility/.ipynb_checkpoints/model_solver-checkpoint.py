@@ -129,14 +129,14 @@ def dfs_thetas_full(preferences, theta, theta_mins, banned = None, bann_opt = Fa
     its = get_candidate_iterator(c)
     for k in its:
         for candidates in its[k]:
-            for c in candidates:
+            for c_i in candidates:
                 if c in theta:
                     continue
-                n_theta = theta + [c]
+                n_theta = theta + [c_i]
                 dfs_thetas_full(preferences, n_theta, theta_mins)
     return True 
 
-def dfs_thetas_r(preferences, theta, theta_mins = [], banned = None, bann_opt = False):
+def dfs_thetas_r(preferences, theta, theta_mins = [], banned = None, bann_opt = True):
     if not banned:
         banned = []
     theta = sorted(theta)
@@ -165,23 +165,23 @@ def dfs_thetas_r(preferences, theta, theta_mins = [], banned = None, bann_opt = 
     b = list(banned)
     for k in its:
         for candidates in its[k]:
-            for c in candidates:
+            for c_i in candidates:
                 if len(theta_mins) > 0 and k > additivity(theta_mins[0]):
                     #print("Cutting over", k, " in:", theta , end = " ")
                     break
-                if c in theta or c in b:
+                if c_i in theta or c_i in b:
                     continue
-                n_theta = theta + [c]
+                n_theta = theta + [c_i]
                 if len(theta_mins) > 0 and theta_better(n_theta, theta_mins[0]) == -1:
                     #print("Cutting", c , " in:", theta, end = " ")
                     continue
                 #print("Trying candidate ", c)
                 dfs_thetas_r(preferences, n_theta, theta_mins, banned = b)
                 if bann_opt:
-                    b.append(c)
+                    b.append(c_i)
     return True
 
-def dfs_thetas_opt(preferences, theta, theta_mins = [], banned = None, bann_opt = False):
+def dfs_thetas_opt(preferences, theta, theta_mins = [], banned = None, bann_opt = True):
     if not banned:
         banned = []
     theta = sorted(theta)
@@ -210,20 +210,20 @@ def dfs_thetas_opt(preferences, theta, theta_mins = [], banned = None, bann_opt 
     b = list(banned)
     for k in its:
         for candidates in its[k]:
-            for c in candidates:
+            for c_i in candidates:
                 if len(theta_mins) > 0 and k > additivity(theta_mins[0]):
                     #print("Cutting over", k, " in:", theta , end = " ")
                     break
-                if c in theta or c in b:
+                if c_i in theta or c_i in b:
                     continue
-                n_theta = theta + [c]
+                n_theta = theta + [c_i]
                 if len(theta_mins) > 0 and theta_better_opt(n_theta, theta_mins[0]) == -1:
                     #print("Cutting", c , " in:", theta, end = " ")
                     continue
                 #print("Trying candidate ", c)
                 dfs_thetas_opt(preferences, n_theta, theta_mins, banned = b)
                 if bann_opt:
-                    b.append(c)
+                    b.append(c_i)
     return True
 
 

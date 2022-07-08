@@ -19,7 +19,7 @@ def get_MPR(s_1, s_2,mdl):
 def ordinal_dominance(s_1, s_2, mdl):
     e = get_MPR(s_1,s_2,mdl)
     e2 = get_MPR(s_2, s_1, mdl)
-    print(f"x={s_1}, y = {s_2}, e1 = {e}, e2 = {e2}")
+    #print(f"x={s_1}, y = {s_2}, e1 = {e}, e2 = {e2}")
     if e < 0:
         return "SUP"
     if e2 < 0:
@@ -225,7 +225,74 @@ def get_kernel(preferences, theta, found = []):
     #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
     return kernel
 
-def get_kernel_opt(preferences, theta, found = []):
+def get_kernels(preferences, theta):
+    found = []
+    k = get_kernel(preferences, theta, found = found)
+    while k:
+        found.append(k)
+        k = get_kernel(preferences, theta, found)
+        #print("Found = ", found)
+    return found
+
+
+
+
+def get_kernel_lex2(preferences, theta, found = []):
+    mdl = utility_polyhedron(preferences.items, theta, preferences)
+    mdl.indicators = {}
+    for s in theta:
+        b = mdl.binary_var(name = f"b_{s}")
+        mdl.add_constraint(mdl.abs(mdl.utilities[s]) <= 1e3*b)
+        mdl.indicators[s] = b
+
+    additivity_exps = [mdl.indicators[s]*len(s) for s in mdl.indicators]
+    additivity_obj = mdl.max(additivity_exps)
+
+    size_obj = mdl.sum_vars_all_different(mdl.indicators.values())
+    valid = mdl.binary_var(name = "valid")
+    #print("==== ")
+    #print("Computing kernel", )
+    #print(preferences)
+    #print(theta)
+    
+    if len(found) > 0:
+        o1 = mdl.binary_var(name = "o1")
+        o2 = mdl.binary_var(name = "o2")
+        representant = found[0]
+        mdl.add_indicator(o1, additivity_obj == additivity(representant))
+        mdl.add_indicator(o2, size_obj == len(representant))
+        indics = [o1, o2]
+        for f in found:
+            f_b = [x for x in theta if not x in f]
+            v_f = [mdl.indicators[i] for i in f ]
+            v_fb = [mdl.indicators[i] for i in mdl.utilities if i not in f]
+            c1 = mdl.logical_or(*v_fb)
+            c2 = mdl.logical_and(*v_f)
+            c3 = mdl.logical_not(c2)
+            #print("c1 = ", c1, " c3 = ", c3)
+            if len(v_fb) > 0:
+                c = mdl.logical_or(c1, c3)
+            else:
+                c = c3
+            indics.append(c)
+        mdl.add_constraint(valid == mdl.logical_and(*indics))
+
+    mdl.minimize_static_lex([mdl.slack_sum, -valid, additivity_obj, size_obj])
+    #print(mdl.lp_string)
+    mdl.solve(log_output = False)
+    #print("Slack: ", mdl.slack_sum.solution_value)
+    #print("Valid:", valid.solution_value)
+    #print("Additivity:", additivity_obj.solution_value)
+    #print("Size:", size_obj.solution_value)
+    if mdl.slack_sum.solution_value != 0:
+        raise Exception("Empty Polyhedron")
+    if valid.solution_value != 1:
+        return None
+    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
+    return kernel
+
+def get_kernel_lex3(preferences, theta, found = []):
     mdl = utility_polyhedron(preferences.items, theta, preferences)
     mdl.indicators = {}
     for s in theta:
@@ -283,23 +350,153 @@ def get_kernel_opt(preferences, theta, found = []):
     #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
     return kernel
 
-def get_kernels(preferences, theta):
+
+def get_kernel_add(preferences, theta, found = []):
+    mdl = utility_polyhedron(preferences.items, theta, preferences)
+    mdl.indicators = {}
+    for s in theta:
+        b = mdl.binary_var(name = f"b_{s}")
+        mdl.add_constraint(mdl.abs(mdl.utilities[s]) <= 1e3*b)
+        mdl.indicators[s] = b 
+        
+    additivity_exps = [mdl.indicators[s]*len(s) for s in mdl.indicators]
+    additivity_obj = mdl.max(additivity_exps)
+    
+    valid = mdl.binary_var(name = "valid")
+    #print("==== ")
+    #print("Computing kernel", )
+    #print(preferences)
+    #print(theta)
+    
+    if len(found) > 0:
+        o1 = mdl.binary_var(name = "o1")
+        representant = found[0]
+        mdl.add_indicator(o1, additivity_obj == additivity(representant))
+        indics = [o1]
+        for f in found:
+            f_b = [x for x in theta if not x in f]
+            v_f = [mdl.indicators[i] for i in f ]
+            v_fb = [mdl.indicators[i] for i in mdl.utilities if i not in f]
+            c1 = mdl.logical_or(*v_fb)
+            c2 = mdl.logical_and(*v_f)
+            c3 = mdl.logical_not(c2)
+            #print("c1 = ", c1, " c3 = ", c3)
+            if len(v_fb) > 0:
+                c = mdl.logical_or(c1, c3)
+            else:
+                c = c3
+            indics.append(c)
+        mdl.add_constraint(valid == mdl.logical_and(*indics))
+
+    mdl.minimize_static_lex([mdl.slack_sum, -valid, additivity_obj])
+    #print(mdl.lp_string)
+    mdl.solve(log_output = False)
+    #print("Slack: ", mdl.slack_sum.solution_value)
+    #print("Valid:", valid.solution_value)
+    #print("Additivity:", additivity_obj.solution_value)
+    #print("Size:", size_obj.solution_value)
+    if mdl.slack_sum.solution_value != 0:
+        raise Exception("Empty Polyhedron")
+    if valid.solution_value != 1:
+        return None
+    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
+    return kernel
+
+
+def get_kernel_variance(preferences, theta, found = []):
+    mdl = utility_polyhedron(preferences.items, theta, preferences)
+    mdl.indicators = {}
+    for s in theta:
+        b = mdl.binary_var(name = f"b_{s}")
+        mdl.add_constraint(mdl.abs(mdl.utilities[s]) <= 1e3*b)
+        mdl.indicators[s] = b
+
+    variance_obj = sum([mdl.indicators[s]*(2**len(s)) for s in mdl.indicators])
+    valid = mdl.binary_var(name = "valid")
+    #print("==== ")
+    #print("Computing kernel", )
+    #print(preferences)
+    #print(theta)
+    
+    if len(found) > 0:
+        o1 = mdl.binary_var(name = "o1")
+        representant = found[0]
+        #print(f"Constraining with {representant} objective to be {variance_obj == sum([2**len(i) for i in representant])}")
+        mdl.add_indicator(o1, variance_obj == sum([2**len(i) for i in representant]))
+        indics = [o1]
+        for f in found:
+            f_b = [x for x in theta if not x in f]
+            v_f = [mdl.indicators[i] for i in f ]
+            v_fb = [mdl.indicators[i] for i in mdl.utilities if i not in f]
+            c1 = mdl.logical_or(*v_fb)
+            c2 = mdl.logical_and(*v_f)
+            c3 = mdl.logical_not(c2)
+            #print("c1 = ", c1, " c3 = ", c3)
+            if len(v_fb) > 0:
+                c = mdl.logical_or(c1, c3)
+            else:
+                c = c3
+            indics.append(c)
+        mdl.add_constraint(valid == mdl.logical_and(*indics))
+
+    mdl.minimize_static_lex([mdl.slack_sum, -valid, variance_obj])
+    #print(mdl.lp_string)
+    mdl.solve(log_output = False)
+    #print("Slack: ", mdl.slack_sum.solution_value)
+    #print("Valid:", valid.solution_value)
+    #print("Additivity:", additivity_obj.solution_value)
+    #print("Size:", size_obj.solution_value)
+    if mdl.slack_sum.solution_value != 0:
+        raise Exception("Empty Polyhedron")
+    if valid.solution_value != 1:
+        return None
+    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
+    return kernel
+
+
+
+def get_kernels_lex2(preferences, theta):
+    k = True
     found = []
-    k = get_kernel(preferences, theta, found = found)
     while k:
-        found.append(k)
-        k = get_kernel(preferences, theta, found)
-        #print("Found = ", found)
+        k = get_kernel_lex2(preferences, theta, found)
+        if k:
+            found.append(k)
+            print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
     return found
 
-def get_kernels_opt(preferences, theta):
+def get_kernels_lex3(preferences, theta):
+    k = True
     found = []
-    k = get_kernel_opt(preferences, theta, found = found)
+    while k:
+        k = get_kernel_lex3(preferences, theta, found)
+        if k:
+            found.append(k)
+            print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
+    return found
+
+def get_kernels_add(preferences, theta):
+    found = []
+    k = get_kernel_add(preferences, theta, found = found)
     while k:
         found.append(k)
-        k = get_kernel_opt(preferences, theta, found)
-        #print("Found = ", found)
+        k = get_kernel_add(preferences, theta, found)
+        print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
     return found
+
+def get_kernels_var(preferences, theta):
+    k = True
+    found = []
+    while k:
+        k = get_kernel_variance(preferences, theta, found)
+        if k:
+            found.append(k)
+            print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
+    return found
+
+
 
 def build_approx_theta(prf, init_theta = None):
     connivents = []
@@ -323,15 +520,15 @@ def build_approx_theta(prf, init_theta = None):
                     if not t in theta and check_connivence_resolution(c, t):
                         theta.append(t)
         c  = get_connivent(theta, prf)
-    #a = additivity(theta)
-    #for c in connivents:
-    #    cit = get_candidate_iterator(c)
-    #    for k in cit:
-    #        if k > a:
-    #            break
-    #        for i in cit[k]:
-    #            for t in i:
-    #                if not t in theta and check_connivence_resolution(c,t):
-    #                    theta.append(t)
-    #
+    a = additivity(theta)
+    for c in connivents:
+        cit = get_candidate_iterator(c)
+        for k in cit:
+            if k > a:
+                break
+            for i in cit[k]:
+                for t in i:
+                    if not t in theta and check_connivence_resolution(c,t):
+                        theta.append(t)
+    
     return theta
