@@ -11,22 +11,22 @@ from PMTK.sampling.gibbs import *
 
 class Film_Dataset:
     
-    def __init__(self, n_films, n_users):
+    def __init__(self, n_films, n_users, ratings_path = "data/ratings.csv"):
         self.n_films = n_films
         self.n_users = n_users
         
-        df = pd.read_csv("ratings.csv")
+        df = pd.read_csv(ratings_path)
         df = df.groupby("userId").count().reset_index()
         count_user = {u:m for u,m in zip(df["userId"], df["movieId"])}
         
-        df = pd.read_csv("ratings.csv")
+        df = pd.read_csv(ratings_path)
         df = df.groupby("movieId").count().reset_index()
         
         count_films = {u:m for u,m in zip(df["userId"], df["movieId"])}
         
         count_user = {i:j for i,j in sorted(count_user.items(), key = lambda x:x[1], reverse= True)}
         count_films = {i:j for i,j in sorted(count_films.items(), key = lambda x:x[1], reverse= True)}
-        df = pd.read_csv("ratings.csv")
+        df = pd.read_csv(ratings_path)
         self.users = list(count_user.keys())[:n_users+1]
         self.films = list(count_films.keys())[:n_films+1]
         rates_matrix = np.zeros((len(self.films), len(self.users)))
