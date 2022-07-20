@@ -288,7 +288,7 @@ def get_kernel_lex2(preferences, theta, found = []):
         raise Exception("Empty Polyhedron")
     if valid.solution_value != 1:
         return None
-    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    kernel = [s for s in mdl.utilities if abs(mdl.indicators[s].solution_value - 1)<= 1e-6]
     #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
     return kernel
 
@@ -346,7 +346,7 @@ def get_kernel_lex3(preferences, theta, found = []):
         raise Exception("Empty Polyhedron")
     if valid.solution_value != 1:
         return None
-    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    kernel = [s for s in mdl.utilities if abs(mdl.indicators[s].solution_value - 1)<= 1e-6]
     #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
     return kernel
 
@@ -399,7 +399,7 @@ def get_kernel_add(preferences, theta, found = []):
         raise Exception("Empty Polyhedron")
     if valid.solution_value != 1:
         return None
-    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    kernel = [s for s in mdl.utilities if abs(mdl.indicators[s].solution_value - 1)<= 1e-6]
     #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
     return kernel
 
@@ -418,11 +418,13 @@ def get_kernel_variance(preferences, theta, found = []):
     #print("Computing kernel", )
     #print(preferences)
     #print(theta)
+    #print("==============In variance===========")
+    
     
     if len(found) > 0:
         o1 = mdl.binary_var(name = "o1")
         representant = found[0]
-        #print(f"Constraining with {representant} objective to be {variance_obj == sum([2**len(i) for i in representant])}")
+        #print(f"Constraining with {representant} objective to be {sum([2**len(i) for i in representant])}")
         mdl.add_indicator(o1, variance_obj == sum([2**len(i) for i in representant]))
         indics = [o1]
         for f in found:
@@ -449,10 +451,13 @@ def get_kernel_variance(preferences, theta, found = []):
     #print("Size:", size_obj.solution_value)
     if mdl.slack_sum.solution_value != 0:
         raise Exception("Empty Polyhedron")
+        
     if valid.solution_value != 1:
         return None
-    kernel = [s for s in mdl.utilities if mdl.indicators[s].solution_value != 0]
+    kernel = [s for s in mdl.utilities if abs(mdl.indicators[s].solution_value - 1)<= 1e-6]
     #print( [mdl.indicators[s].solution_value for s in mdl.utilities])
+    #print("Objective was: ", variance_obj.solution_value)
+    #print("Returning ", kernel , "with objective value", sum([2**len(i) for i in kernel]))
     return kernel
 
 
@@ -464,7 +469,7 @@ def get_kernels_lex2(preferences, theta):
         k = get_kernel_lex2(preferences, theta, found)
         if k:
             found.append(k)
-            print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
+            #print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
     return found
 
 def get_kernels_lex3(preferences, theta):
@@ -474,17 +479,19 @@ def get_kernels_lex3(preferences, theta):
         k = get_kernel_lex3(preferences, theta, found)
         if k:
             found.append(k)
-            print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
+            #print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
     return found
 
-def get_kernels_add(preferences, theta):
-    found = []
-    k = get_kernel_add(preferences, theta, found = found)
-    while k:
-        found.append(k)
-        k = get_kernel_add(preferences, theta, found)
-        print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
-    return found
+#def get_kernels_add(preferences, theta):
+#    found = []
+#    k = get_kernel_add(preferences, theta, found = found)
+#    while k:
+#        found.append(k)
+#        k = get_kernel_add(preferences, theta, found)
+#        found_metrics = [sum(2**(len(i)) for i in j) for j in found]
+#        #print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
+#        print("Found metrics:", found_metrics)
+#    return found
 
 def get_kernels_var(preferences, theta):
     k = True
@@ -493,7 +500,11 @@ def get_kernels_var(preferences, theta):
         k = get_kernel_variance(preferences, theta, found)
         if k:
             found.append(k)
-            print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
+            found_metrics = [sum(2**(len(i)) for i in j) for j in found]
+            #print(f"Found n°{len(found)} = ", found[-1], "with obj:", sum(2**(len(i)) for i in found[-1]))
+            if not all(i == found_metrics[-1] for i in found_metrics):
+                print("Found metrics:", found_metrics)
+                input("press")
     return found
 
 

@@ -412,7 +412,80 @@ class Preferences:
             P.add_indifference(x,y)
         return P
 
+class Weighted_Preferences(Preferences):
+    
+    def __init__(self, items):
+        super().__init__(items)
+        self.preferences_weight = []
+        self.indifferences_weight = []
 
+    def __add_subsets(self, subset):
+        """
+        Used to maintain a list of the subsets concerned by the preferences.
+        """
+        if subset == EMPTY_SET:
+            if not subset in self.subsets:
+                self.subsets.append(subset)
+            return subset
+        if type(subset) != tuple:
+            subset = [subset]
+        try:
+            subset = [i for i in subset if i in self.items]
+            subset = tuple(sorted(set(subset)))
+            if subset not in self.subsets:
+                self.subsets.append(subset)
+            return subset
+        except TypeException:
+            print(f"Exception because of the type of {subset}")
+            raise TypeException
+            
+    def add_preference(self, s_1, s_2, w):
+        """
+        Create a strict preference between x and y.
+        """
+        s_1 = self.__add_subsets(s_1)
+        s_2 = self.__add_subsets(s_2)
+        t_1 = [s_1, s_2]
+        if t_1 not in self.preferred:
+            self.preferred.append(t_1)
+            self.preferences_weight.append(w)
+            
+    def add_indifference(self, s_1, s_2, w):
+        """
+        Create an indifference relation between x and y.
+        """
+        s_1 = self.__add_subsets(s_1)
+        s_2 = self.__add_subsets(s_2)
+        t_1 = [s_1, s_2]
+        if t_1 not in self.indifferent:
+            self.indifferent.append(t_1)
+            self.indifferences_weight.append(w)
+    
+    def get_preferences_of_degree(self, d):
+        prf = Preferences(self.items)
+        for (x,y), w in zip(self.preferred, self.preferences_weight):
+            if w >= d:
+                prf.add_preference(x,y)
+        for (x,y), w in zip(self.indifferent, self.indifferences_weight):
+            if w >= d:
+                prf.add_indifference(x,y)
+        return prf
+            
+    def get_degree_of_preference(self, s_1, s_2):
+        s_1 = self.__add_subsets(s_1)
+        s_2 = self.__add_subsets(s_2)
+        t_1 = [s_1, s_2]
+        
+        if t_1 in self.indifferent:
+            return 0
+        if t_1 in self.preferred:
+            return w
+        t_2 = [s_1, s_2]
+        if t_2 in self.preferred:
+            return -w
+        
+
+    
 
 if __name__ == "__main__":
     pass
