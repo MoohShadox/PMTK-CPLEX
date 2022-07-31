@@ -11,7 +11,7 @@ from PMTK.sampling.gibbs import *
 
 class Film_Dataset:
     
-    def __init__(self, n_films, n_users, ratings_path = "data/ratings.csv"):
+    def __init__(self, n_films, n_users,target_user, ratings_path = "data/ratings.csv"):
         self.n_films = n_films
         self.n_users = n_users
         
